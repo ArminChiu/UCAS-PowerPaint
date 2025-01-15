@@ -32,6 +32,16 @@ elif [ "$1" = "-input" ]; then
             echo "Source directories $src_dir/images and/or $src_dir/masks do not exist."
         fi
     fi
+elif [ "$1" = "-clean" ]; then
+    # 删除data目录下的images、masks和output子目录中的所有文件
+    if [ -d "data/images" ] && [ -d "data/masks" ] && [ -d "data/output" ]; then
+        rm -rf data/images/*
+        rm -rf data/masks/*
+        rm -rf data/output/*
+        echo "All files in data/images, data/masks, and data/output have been deleted."
+    else
+        echo "One or more directories (data/images, data/masks, data/output) do not exist."
+    fi
 else
-    echo "Invalid option. Use -make to create directories, -output to rename and move the data directory, or -input to move directories."
+    echo "Invalid option. Use -make to create directories, -output to rename and move the data directory, -input to move directories, or -clean to delete files in data subdirectories."
 fi

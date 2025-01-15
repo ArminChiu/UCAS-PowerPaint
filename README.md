@@ -12,6 +12,8 @@ conda activate ppt
 
 # Install Dependencies
 pip install -r requirements/requirements.txt
+pip uninstall huggingface_hub
+pip install huggingface_hub==0.25.0
 ```
 
 ## Inference
@@ -25,7 +27,7 @@ git lfs install
 git lfs clone https://hf-mirror.com/JunhaoZhuang/PowerPaint-v1/ ./checkpoints/ppt-v1
 
 # Launch the Gradio interface
-source /etc/network_turbo && python app.py --share
+source /etc/network_turbo && python app-gradio.py --share
 
 # Or launch the cmd interface
 python app.py --start_index 1 --end_index 30 --task object-removal
