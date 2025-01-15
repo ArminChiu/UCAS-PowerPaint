@@ -16,8 +16,6 @@ pip install -r requirements/requirements.txt
 
 ## Inference
 
-You can launch the Gradio interface for PowerPaint by running the following command:
-
 ```bash
 # Set up Git LFS
 conda install git-lfs
@@ -26,15 +24,9 @@ git lfs install
 # Clone PowerPaint Model
 git lfs clone https://hf-mirror.com/JunhaoZhuang/PowerPaint-v1/ ./checkpoints/ppt-v1
 
+# Launch the Gradio interface
 source /etc/network_turbo && python app.py --share
-```
 
-For the BrushNet-based PowerPaint, you can run the following command:
-```bash
-# Clone PowerPaint Model
-git lfs clone https://hf-mirror.com/JunhaoZhuang/PowerPaint_v2/ ./checkpoints/ppt-v2
-
-source /etc/network_turbo && python app.py --share --version ppt-v2 --checkpoint_dir checkpoints/ppt-v2
-
-source /etc/network_turbo && source ./venv/bin/activate && cd PowerPaint && python app.py --start_index 1 --end_index 30 --task object-removal
+# Or launch the cmd interface
+python app.py --start_index 1 --end_index 30 --task object-removal
 ```
