@@ -3,6 +3,7 @@ import os
 import random
 
 import cv2
+import gradio as gr
 import numpy as np
 import torch
 from controlnet_aux import HEDdetector, OpenposeDetector
@@ -20,7 +21,6 @@ from powerpaint.pipelines.pipeline_PowerPaint_ControlNet import (
     StableDiffusionControlNetInpaintPipeline as controlnetPipeline,
 )
 from powerpaint.utils.utils import TokenizerWrapper, add_tokens
-from tqdm import tqdm
 
 
 torch.set_grad_enabled(False)
@@ -62,6 +62,22 @@ def add_task(prompt, negative_prompt, control_type, version):
         negative_promptB = neg_prefix + "P_obj"
 
     return promptA, promptB, negative_promptA, negative_promptB
+
+
+def select_tab_text_guided():
+    return "text-guided"
+
+
+def select_tab_object_removal():
+    return "object-removal"
+
+
+def select_tab_image_outpainting():
+    return "image-outpainting"
+
+
+def select_tab_shape_guided():
+    return "shape-guided"
 
 
 class PowerPaintController:
@@ -456,75 +472,278 @@ class PowerPaintController:
         result_paste = Image.fromarray(np.uint8(ours_np * 255))
         return [input_image["image"].convert("RGB"), result_paste], [controlnet_image, result_m]
 
+    def infer(
+        self,
+        input_image,
+        text_guided_prompt,
+        text_guided_negative_prompt,
+        shape_guided_prompt,
+        shape_guided_negative_prompt,
+        fitting_degree,
+        ddim_steps,
+        scale,
+        seed,
+        task,
+        vertical_expansion_ratio,
+        horizontal_expansion_ratio,
+        outpaint_prompt,
+        outpaint_negative_prompt,
+        removal_prompt,
+        removal_negative_prompt,
+        enable_control=False,
+        input_control_image=None,
+        control_type="canny",
+        controlnet_conditioning_scale=None,
+    ):
+        if task == "text-guided":
+            prompt = text_guided_prompt
+            negative_prompt = text_guided_negative_prompt
+        elif task == "shape-guided":
+            prompt = shape_guided_prompt
+            negative_prompt = shape_guided_negative_prompt
+        elif task == "object-removal":
+            prompt = removal_prompt
+            negative_prompt = removal_negative_prompt
+        elif task == "image-outpainting":
+            prompt = outpaint_prompt
+            negative_prompt = outpaint_negative_prompt
+            return self.predict(
+                input_image,
+                prompt,
+                fitting_degree,
+                ddim_steps,
+                scale,
+                seed,
+                negative_prompt,
+                task,
+                vertical_expansion_ratio,
+                horizontal_expansion_ratio,
+            )
+        else:
+            task = "text-guided"
+            prompt = text_guided_prompt
+            negative_prompt = text_guided_negative_prompt
+
+        # currently, we only support controlnet in PowerPaint-v1
+        if self.version == "ppt-v1" and enable_control and task == "text-guided":
+            return self.predict_controlnet(
+                input_image,
+                input_control_image,
+                control_type,
+                prompt,
+                ddim_steps,
+                scale,
+                seed,
+                negative_prompt,
+                controlnet_conditioning_scale,
+            )
+        else:
+            return self.predict(
+                input_image, prompt, fitting_degree, ddim_steps, scale, seed, negative_prompt, task, None, None
+            )
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--weight_dtype", type=str, default="float16")
-    parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints/ppt-v1")
-    parser.add_argument("--version", type=str, default="ppt-v1")
-    parser.add_argument("--local_files_only", action="store_true", help="enable it to use cached files without requesting from the hub")
-    parser.add_argument("--input_dir", type=str, required=True, help="Directory containing input images")
-    parser.add_argument("--mask_dir", type=str, required=True, help="Directory containing mask images")
-    parser.add_argument("--output_dir", type=str, default="./output", help="Directory to save the output images")
-    parser.add_argument("--start_index", type=int, required=True, help="Start index for image processing")
-    parser.add_argument("--end_index", type=int, required=True, help="End index for image processing")
-    parser.add_argument("--task", type=str, required=True, choices=["text-guided", "object-removal", "shape-guided", "image-outpainting"], help="Task name")
-    parser.add_argument("--prompt", type=str, required=True, help="Prompt for the task")
-    parser.add_argument("--negative_prompt", type=str, default="", help="Negative prompt for the task")
-    parser.add_argument("--ddim_steps", type=int, default=50, help="Number of DDIM steps")
-    parser.add_argument("--scale", type=float, default=7.5, help="Guidance scale")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--control_type", type=str, default="canny", choices=["canny", "pose", "depth", "hed"], help="Control type for ControlNet")
-    parser.add_argument("--controlnet_conditioning_scale", type=float, default=0.5, help="ControlNet conditioning scale")
-    args = parser.parse_args()
+    args = argparse.ArgumentParser()
+    args.add_argument("--weight_dtype", type=str, default="float16")
+    args.add_argument("--checkpoint_dir", type=str, default="./checkpoints/ppt-v1")
+    args.add_argument("--version", type=str, default="ppt-v1")
+    args.add_argument("--share", action="store_true")
+    args.add_argument(
+        "--local_files_only", action="store_true", help="enable it to use cached files without requesting from the hub"
+    )
+    args.add_argument("--port", type=int, default=7860)
+    args = args.parse_args()
 
-    # Initialize the pipeline controller
+    # initialize the pipeline controller
     weight_dtype = torch.float16 if args.weight_dtype == "float16" else torch.float32
     controller = PowerPaintController(weight_dtype, args.checkpoint_dir, args.local_files_only, args.version)
 
-    # Create output directory if it doesn't exist
-    os.makedirs(args.output_dir, exist_ok=True)
+    # ui
+    with gr.Blocks(css="style.css") as demo:
+        with gr.Row():
+            gr.Markdown(
+                "<div align='center'><font size='18'>PowerPaint: High-Quality Versatile Image Inpainting</font></div>"  # noqa
+            )
+        with gr.Row():
+            gr.Markdown(
+                "<div align='center'><font size='5'><a href='https://powerpaint.github.io/'>Project Page</a> &ensp;"  # noqa
+                "<a href='https://arxiv.org/abs/2312.03594/'>Paper</a> &ensp;"
+                "<a href='https://github.com/open-mmlab/powerpaint'>Code</a> </font></div>"  # noqa
+            )
+        with gr.Row():
+            gr.Markdown(
+                "**Note:** Due to network-related factors, the page may experience occasional bugs！ If the inpainting results deviate significantly from expectations, consider toggling between task options to refresh the content."  # noqa
+            )
+        # Attention: Due to network-related factors, the page may experience occasional bugs. If the inpainting results deviate significantly from expectations, consider toggling between task options to refresh the content.
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("### Input image and draw mask")
+                input_image = gr.Image(source="upload", tool="sketch", type="pil")
 
-    # Process images in the specified range with a progress bar
-    for i in tqdm(range(args.start_index, args.end_index + 1), desc="Processing images"):
-        input_image_path = os.path.join(args.input_dir, f"{i:05d}.png")
-        mask_image_path = os.path.join(args.mask_dir, f"{i:05d}_mask.png")
+                task = gr.Radio(
+                    ["text-guided", "object-removal", "shape-guided", "image-outpainting"],
+                    show_label=False,
+                    visible=False,
+                )
 
-        if not os.path.exists(input_image_path) or not os.path.exists(mask_image_path):
-            print(f"Skipping {i:05d}: Input or mask image not found.")
-            continue
+                # Text-guided object inpainting
+                with gr.Tab("Text-guided object inpainting") as tab_text_guided:
+                    enable_text_guided = gr.Checkbox(
+                        label="Enable text-guided object inpainting", value=True, interactive=False
+                    )
+                    text_guided_prompt = gr.Textbox(label="Prompt")
+                    text_guided_negative_prompt = gr.Textbox(label="negative_prompt")
+                    tab_text_guided.select(fn=select_tab_text_guided, inputs=None, outputs=task)
 
-        # Load input images
-        input_image = {"image": Image.open(input_image_path).convert("RGB"), "mask": Image.open(mask_image_path).convert("RGB")}
+                    # currently, we only support controlnet in PowerPaint-v1
+                    if args.version == "ppt-v1":
+                        gr.Markdown("### Controlnet setting")
+                        enable_control = gr.Checkbox(
+                            label="Enable controlnet", info="Enable this if you want to use controlnet"
+                        )
+                        controlnet_conditioning_scale = gr.Slider(
+                            label="controlnet conditioning scale",
+                            minimum=0,
+                            maximum=1,
+                            step=0.05,
+                            value=0.5,
+                        )
+                        control_type = gr.Radio(["canny", "pose", "depth", "hed"], label="Control type")
+                        input_control_image = gr.Image(source="upload", type="pil")
 
-        # Perform inference
-        if args.task == "text-guided":
-            result, _ = controller.predict_controlnet(
-                input_image,
-                input_image["image"],
-                args.control_type,
-                args.prompt,
-                args.ddim_steps,
-                args.scale,
-                args.seed,
-                args.negative_prompt,
-                args.controlnet_conditioning_scale,
+                # Object removal inpainting
+                with gr.Tab("Object removal inpainting") as tab_object_removal:
+                    enable_object_removal = gr.Checkbox(
+                        label="Enable object removal inpainting",
+                        value=True,
+                        info="The recommended configuration for the Guidance Scale is 10 or higher. \
+                        If undesired objects appear in the masked area, \
+                        you can address this by specifically increasing the Guidance Scale.",
+                        interactive=False,
+                    )
+                    removal_prompt = gr.Textbox(label="Prompt")
+                    removal_negative_prompt = gr.Textbox(label="negative_prompt")
+                tab_object_removal.select(fn=select_tab_object_removal, inputs=None, outputs=task)
+
+                # Object image outpainting
+                with gr.Tab("Image outpainting") as tab_image_outpainting:
+                    enable_object_removal = gr.Checkbox(
+                        label="Enable image outpainting",
+                        value=True,
+                        info="The recommended configuration for the Guidance Scale is 10 or higher. \
+                        If unwanted random objects appear in the extended image region, \
+                            you can enhance the cleanliness of the extension area by increasing the Guidance Scale.",
+                        interactive=False,
+                    )
+                    outpaint_prompt = gr.Textbox(label="Outpainting_prompt")
+                    outpaint_negative_prompt = gr.Textbox(label="Outpainting_negative_prompt")
+                    horizontal_expansion_ratio = gr.Slider(
+                        label="horizontal expansion ratio",
+                        minimum=1,
+                        maximum=4,
+                        step=0.05,
+                        value=1,
+                    )
+                    vertical_expansion_ratio = gr.Slider(
+                        label="vertical expansion ratio",
+                        minimum=1,
+                        maximum=4,
+                        step=0.05,
+                        value=1,
+                    )
+                tab_image_outpainting.select(fn=select_tab_image_outpainting, inputs=None, outputs=task)
+
+                # Shape-guided object inpainting
+                with gr.Tab("Shape-guided object inpainting") as tab_shape_guided:
+                    enable_shape_guided = gr.Checkbox(
+                        label="Enable shape-guided object inpainting", value=True, interactive=False
+                    )
+                    shape_guided_prompt = gr.Textbox(label="shape_guided_prompt")
+                    shape_guided_negative_prompt = gr.Textbox(label="shape_guided_negative_prompt")
+                    fitting_degree = gr.Slider(
+                        label="fitting degree",
+                        minimum=0,
+                        maximum=1,
+                        step=0.05,
+                        value=1,
+                    )
+                tab_shape_guided.select(fn=select_tab_shape_guided, inputs=None, outputs=task)
+
+                run_button = gr.Button(label="Run")
+                with gr.Accordion("Advanced options", open=False):
+                    ddim_steps = gr.Slider(label="Steps", minimum=1, maximum=50, value=45, step=1)
+                    scale = gr.Slider(
+                        label="Guidance Scale",
+                        info="For object removal and image outpainting, it is recommended to set the value at 10 or above.",
+                        minimum=0.1,
+                        maximum=30.0,
+                        value=7.5,
+                        step=0.1,
+                    )
+                    seed = gr.Slider(
+                        label="Seed",
+                        minimum=0,
+                        maximum=2147483647,
+                        step=1,
+                        randomize=True,
+                    )
+            with gr.Column():
+                gr.Markdown("### Inpainting result")
+                inpaint_result = gr.Gallery(label="Generated images", show_label=False, columns=2)
+                gr.Markdown("### Mask")
+                gallery = gr.Gallery(label="Generated masks", show_label=False, columns=2)
+
+        if args.version == "ppt-v1":
+            run_button.click(
+                fn=controller.infer,
+                inputs=[
+                    input_image,
+                    text_guided_prompt,
+                    text_guided_negative_prompt,
+                    shape_guided_prompt,
+                    shape_guided_negative_prompt,
+                    fitting_degree,
+                    ddim_steps,
+                    scale,
+                    seed,
+                    task,
+                    vertical_expansion_ratio,
+                    horizontal_expansion_ratio,
+                    outpaint_prompt,
+                    outpaint_negative_prompt,
+                    removal_prompt,
+                    removal_negative_prompt,
+                    enable_control,
+                    input_control_image,
+                    control_type,
+                    controlnet_conditioning_scale,
+                ],
+                outputs=[inpaint_result, gallery],
             )
         else:
-            result, _ = controller.predict(
-                input_image,
-                args.prompt,
-                1.0,  # fitting_degree
-                args.ddim_steps,
-                args.scale,
-                args.seed,
-                args.negative_prompt,
-                args.task,
-                None,  # vertical_expansion_ratio
-                None,  # horizontal_expansion_ratio
+            run_button.click(
+                fn=controller.infer,
+                inputs=[
+                    input_image,
+                    text_guided_prompt,
+                    text_guided_negative_prompt,
+                    shape_guided_prompt,
+                    shape_guided_negative_prompt,
+                    fitting_degree,
+                    ddim_steps,
+                    scale,
+                    seed,
+                    task,
+                    vertical_expansion_ratio,
+                    horizontal_expansion_ratio,
+                    outpaint_prompt,
+                    outpaint_negative_prompt,
+                    removal_prompt,
+                    removal_negative_prompt,
+                ],
+                outputs=[inpaint_result, gallery],
             )
 
-        # Save the output image
-        output_image_path = os.path.join(args.output_dir, f"{i:05d}_output.png")
-        result[0].save(output_image_path)
-        print(f"Output image saved to {output_image_path}")
+    demo.queue()
+    demo.launch(share=args.share, server_name="0.0.0.0", server_port=6006)
