@@ -36,5 +36,5 @@ git lfs clone https://hf-mirror.com/JunhaoZhuang/PowerPaint_v2/ ./checkpoints/pp
 
 source /etc/network_turbo && python app.py --share --version ppt-v2 --checkpoint_dir checkpoints/ppt-v2
 
-python app.py --input_dir ../test/images --mask_dir ../test/masks --output_dir ./output --start_index 1 --end_index 30 --task object-removal --prompt "" --negative_prompt "" --ddim_steps 50 --scale 7.5 --seed 42 --control_type canny --controlnet_conditioning_scale 0.5
+source /etc/network_turbo && source ./venv/bin/activate && cd PowerPaint && python app.py --start_index 1 --end_index 30 --task object-removal
 ```
