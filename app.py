@@ -472,7 +472,7 @@ if __name__ == "__main__":
     parser.add_argument("--negative_prompt", type=str, default="", help="Negative prompt for the task")
     parser.add_argument("--ddim_steps", type=int, default=50, help="Number of DDIM steps")
     parser.add_argument("--scale", type=float, default=7.5, help="Guidance scale")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=40, help="Random seed")
     parser.add_argument("--control_type", type=str, default="canny", choices=["canny", "pose", "depth", "hed"], help="Control type for ControlNet")
     parser.add_argument("--controlnet_conditioning_scale", type=float, default=0.5, help="ControlNet conditioning scale")
     args = parser.parse_args()
