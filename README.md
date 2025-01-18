@@ -1,7 +1,8 @@
 # PowerPaint
-
+## Introduction
+This is a repository created to test Image Inpainting on the PowerPaint model, the source code has been modified according to the requirements.
 ## Dataset Format
-The default I/O directory is `PowerPaint/data`.
+The default I/O directory is `UCAS-PowerPaint/data`.
 You can place it in any directory, but do remember to claim the input and output paths in the command.
 
 It's best to change the file name of your dataset to a numerical number.
