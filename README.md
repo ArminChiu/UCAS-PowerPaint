@@ -29,7 +29,7 @@ This way, you can process data in an orderly manner based on the index.
 
 ### Clone the Repository
 ```bash
-git clone git@github.com:ArminChiu/PowerPaint.git
+git clone git@github.com:ArminChiu/UCAS-PowerPaint.git
 ```
 
 ### Create Virtual Environment with Conda
