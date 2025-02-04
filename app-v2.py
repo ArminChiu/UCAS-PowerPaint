@@ -345,6 +345,19 @@ class PowerPaintController:
                 height=W,
             ).images[0]
 
+        if task == "object-removal":
+            # 将掩码以外的区域替换为原图像的对应区域
+            original_image_np = np.array(input_image["image"].convert("RGB"))
+            result_np = np.array(result)
+            mask_np = np.array(input_image["mask"].convert("L")) / 255.0  # 将掩码转换为灰度图并归一化
+
+            # 对掩码进行模糊处理
+            mask_np = cv2.GaussianBlur(mask_np, (15, 15), 0)
+
+            # 保持掩码以外的区域不变
+            final_result_np = result_np * mask_np[:, :, None] + original_image_np * (1 - mask_np[:, :, None])
+            result = Image.fromarray(final_result_np.astype(np.uint8))
+
         mask_np = np.array(input_image["mask"].convert("RGB"))
         red = np.array(result).astype("float") * 1
         red[:, :, 0] = 180.0
