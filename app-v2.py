@@ -240,7 +240,7 @@ class PowerPaintController:
         horizontal_expansion_ratio,
     ):
         size1, size2 = input_image["image"].convert("RGB").size
-
+        '''
         if task != "image-outpainting":
             if size1 < size2:
                 input_image["image"] = input_image["image"].convert("RGB").resize((640, int(size2 / size1 * 640)))
@@ -251,7 +251,7 @@ class PowerPaintController:
                 input_image["image"] = input_image["image"].convert("RGB").resize((512, int(size2 / size1 * 512)))
             else:
                 input_image["image"] = input_image["image"].convert("RGB").resize((int(size1 / size2 * 512), 512))
-
+        '''
         if vertical_expansion_ratio is not None and horizontal_expansion_ratio is not None:
             o_W, o_H = input_image["image"].convert("RGB").size
             c_W = int(horizontal_expansion_ratio * o_W)
@@ -399,11 +399,12 @@ class PowerPaintController:
         negative_promptA = negative_prompt
         negative_promptB = negative_prompt
         size1, size2 = input_image["image"].convert("RGB").size
-
+        '''
         if size1 < size2:
             input_image["image"] = input_image["image"].convert("RGB").resize((640, int(size2 / size1 * 640)))
         else:
             input_image["image"] = input_image["image"].convert("RGB").resize((int(size1 / size2 * 640), 640))
+        '''
         img = np.array(input_image["image"].convert("RGB"))
         W = int(np.shape(img)[0] - np.shape(img)[0] % 8)
         H = int(np.shape(img)[1] - np.shape(img)[1] % 8)
@@ -475,15 +476,15 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints/ppt-v1")
     parser.add_argument("--version", type=str, default="ppt-v1")
     parser.add_argument("--local_files_only", action="store_true", help="enable it to use cached files without requesting from the hub")
-    parser.add_argument("--input_dir", type=str, default="./data/images", help="Directory containing input images")
-    parser.add_argument("--mask_dir", type=str, default="./data/masks", help="Directory containing mask images")
+    parser.add_argument("--input_dir", type=str, default="../sv/images", help="Directory containing input images")
+    parser.add_argument("--mask_dir", type=str, default="../sv/masks", help="Directory containing mask images")
     parser.add_argument("--output_dir", type=str, default="./data/output", help="Directory to save the output images")
     parser.add_argument("--start_index", type=int, required=True, help="Start index for image processing")
     parser.add_argument("--end_index", type=int, required=True, help="End index for image processing")
     parser.add_argument("--task", type=str, required=True, choices=["text-guided", "object-removal", "shape-guided", "image-outpainting"], help="Task name")
     parser.add_argument("--prompt", type=str, default="", help="Prompt for the task")
     parser.add_argument("--negative_prompt", type=str, default="", help="Negative prompt for the task")
-    parser.add_argument("--ddim_steps", type=int, default=50, help="Number of DDIM steps")
+    parser.add_argument("--ddim_steps", type=int, default=40, help="Number of DDIM steps")
     parser.add_argument("--scale", type=float, default=10, help="Guidance scale")
     parser.add_argument("--seed", type=int, default=40, help="Random seed")
     parser.add_argument("--control_type", type=str, default="canny", choices=["canny", "pose", "depth", "hed"], help="Control type for ControlNet")
